@@ -3,34 +3,31 @@ package com.simon.app.xfermodedemo
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.*
+import android.support.v4.content.ContextCompat
 import android.util.AttributeSet
-import android.view.View
-import android.graphics.PorterDuff
-import android.graphics.PorterDuffXfermode
-import android.graphics.Xfermode
-import android.graphics.Shader
-import android.graphics.Bitmap
-import android.graphics.BitmapShader
-import android.graphics.RectF
 import android.util.Log
+import android.view.View
+
 
 /**
- * desc: 自定义
+ * desc:
  * auther: xw
- * date: 2018/3/2
+ * date: 2018/3/5
  * @auther: xw
  */
 class CustomerView(context: Context?, attrs: AttributeSet?) : View(context, attrs) {
 
-    private val paint = Paint()
+    private val mPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG)
 
-    private val bmWidth = 250
-    private val bmHeight = 250
+    private var bmWidth = 0
+    private var bmHeight = 0
 
-    private val ROW_MAX = 4   // number of samples per row
-    private var mSrcB: Bitmap? = null
-    private var mDstB: Bitmap? = null
-    private var mBG: Shader? = null     // background checker-board pattern
+    //源图像
+    private var mSrcBm: Bitmap? = null
+    //目标图像
+    private var mDstBm: Bitmap? = null
+
     private val sModes = arrayOf<Xfermode>(
             PorterDuffXfermode(PorterDuff.Mode.CLEAR),
             PorterDuffXfermode(PorterDuff.Mode.SRC),
@@ -48,6 +45,7 @@ class CustomerView(context: Context?, attrs: AttributeSet?) : View(context, attr
             PorterDuffXfermode(PorterDuff.Mode.LIGHTEN),
             PorterDuffXfermode(PorterDuff.Mode.MULTIPLY),
             PorterDuffXfermode(PorterDuff.Mode.SCREEN))
+
     private val sLabels = arrayOf(
             "Clear", "Src", "Dst", "SrcOver",
             "DstOver", "SrcIn", "DstIn", "SrcOut",
@@ -55,114 +53,127 @@ class CustomerView(context: Context?, attrs: AttributeSet?) : View(context, attr
             "Darken", "Lighten", "Multiply", "Screen")
 
     init {
-        paint.apply {
-            color = Color.parseColor("#FFDFDBDC")
-            isAntiAlias = true
+        mPaint.apply {
+            color = ContextCompat.getColor(context, R.color.bg)
+            mPaint.isFilterBitmap = false
             style = Paint.Style.FILL
         }
 
-        mSrcB = makeSrc(bmWidth, bmHeight)
-        mDstB = makeDst(bmWidth, bmHeight)
-        // make a ckeckerboard pattern
-        val bm = Bitmap.createBitmap(intArrayOf(-0x1, -0x333334, -0x333334, -0x1), 2, 2, Bitmap.Config.RGB_565)
-        mBG = BitmapShader(bm, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
-        val matrix = Matrix()
-        matrix.setScale(6F, 6F)
-        mBG!!.setLocalMatrix(matrix)
+        labelPaint.apply {
+            labelPaint.textSize = 40f
+            //居中
+            labelPaint.textAlign = Paint.Align.CENTER
+        }
     }
+
 
     @SuppressLint("DrawAllocation")
     override fun onDraw(canvas: Canvas?) {
-
+        initBm()
+        val bmShader = createBmShader()
         canvas?.apply {
-            drawColor(Color.WHITE)
-            val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-            labelPaint.textSize = 40f
-            labelPaint.textAlign = Paint.Align.CENTER
-            val paint = Paint()
-            paint.isFilterBitmap = false
-            translate(15f, 20f)
+            //整体背景
+            canvas.drawColor(Color.WHITE)
+
+            //画布偏移
+            canvas.translate(OFFSET.toFloat(), 60f)
+
             var x = 0
             var y = 0
-            //起点
-            var drawX0 = 0f
-            var drawY0 = 0f
-            //终点
-            var drawX1 = 0f
-            var drawY1 = 0f
 
             for (i in 0 until sModes.size) {
-                drawX0 = x.toFloat()
-                drawY0 = y.toFloat()
-                drawX1 = x.toFloat() + bmWidth
-                drawY1 = y.toFloat() + bmHeight
-
+                //画四围
+                mPaint.color = Color.BLACK
+                mPaint.style = Paint.Style.STROKE
+                mPaint.shader = null
                 Log.i(TAG, "x=$x, y=$y")
 
-                // draw the label
-                drawText(sLabels[i], x + bmWidth / 2f, y.toFloat(), labelPaint)
+                //label
+                canvas.drawText(sLabels[i], x + bmWidth / 2f, y - 0.5f, labelPaint)
 
-                translate(drawX0, drawY0)
+                //四围
+                canvas.drawRect(x - 1f, y + 20f - 1f, x + bmWidth + 1f, y + 20f + bmHeight + 1f, mPaint)
 
-                // draw the border
-                paint.style = Paint.Style.STROKE
-                paint.shader = null
-                //外围的线
-                drawRect(drawX0 - 0.5f, drawY0 + labelPaint.textSize - 0.5f, drawX1 + 0.5f, drawY1 + 0.5f, paint)
+                //背景
+                mPaint.style = Paint.Style.FILL
+                mPaint.shader = bmShader
+                canvas.drawRect(x.toFloat(), y + 20f, (x + bmWidth).toFloat(), y + 20f + bmHeight, mPaint)
 
-                // draw the checker-board pattern
-                paint.style = Paint.Style.FILL
-                paint.shader = mBG
-
-                //画背景
-                drawRect(drawX0, drawY0, drawX1, drawY1, paint)
-
-                // draw the src/dst example into our offscreen bitmap
-                val sc = saveLayer(drawX0, drawY0, drawX1, drawY1, null)
-                translate(drawX0, drawY0)
-
+                //新建bitmap图层
+//                val saveCount = saveLayer(x.toFloat(), y.toFloat(), x + bmWidth.toFloat(), y + bmHeight.toFloat(), null)
+                val saveCount = saveLayer(x.toFloat(), y.toFloat(), x + bmWidth.toFloat(), y + bmHeight.toFloat(), null)
+                canvas.translate(x.toFloat(), y.toFloat() + 20)
                 //绘制DST
-                drawBitmap(mDstB, 0f, 0f, paint)
-                paint.xfermode = sModes[i]
-
+                drawBitmap(mDstBm, 0f, 0f, mPaint)
+                mPaint.xfermode = sModes[i]
                 //绘制SRC
-                drawBitmap(mSrcB, 0f, 0f, paint)
-                paint.xfermode = null
+                drawBitmap(mSrcBm, 0f, 0f, mPaint)
+                mPaint.xfermode = null
+                restoreToCount(saveCount)
 
-                restoreToCount(sc)
-
-                x += bmWidth + 15
-                // wrap around when we've drawn enough for one row
+                //坐标跟着变化
+                x += bmWidth + OFFSET
                 if (i % ROW_MAX == ROW_MAX - 1) {
                     x = 0
-                    y += bmHeight + 30
+                    y += bmHeight + 80
                 }
             }
         }
     }
 
-    // create a bitmap with a circle, used for the "dst" image
-    private fun makeDst(w: Int, h: Int): Bitmap {
-        val bm = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bm)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        paint.color = Color.parseColor("#FFFFCC44")
-        canvas.drawOval(RectF(0f, 0f, w * 3f / 4, h * 3f / 4), paint)
-        return bm
+    private fun initBm() {
+        if (bmWidth == 0) {
+            bmWidth = (width - OFFSET * 5) / ROW_MAX
+            bmHeight = bmWidth
+//            Log.i(TAG, "bmWidth=$bmWidth, bmHeight=$bmHeight")
+        }
+
+        if (mSrcBm == null) {
+            mSrcBm = createSRC(bmWidth, bmHeight)
+        }
+
+        if (mDstBm == null) {
+            mDstBm = createDST(bmWidth, bmHeight)
+        }
     }
 
-    // create a bitmap with a rect, used for the "src" image
-    private fun makeSrc(w: Int, h: Int): Bitmap {
-        val bm = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bm)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        paint.color = Color.parseColor("#FF66AAFF")
-        canvas.drawRect(w / 3f, h / 3f, w * 19f / 20, h * 19f / 20, paint)
-        return bm
+
+    /** 源图像 */
+    private fun createSRC(width: Int, height: Int): Bitmap {
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        mPaint.color = ContextCompat.getColor(context, R.color.src)
+        canvas.drawRect(width / 3f, height / 3f, width * 19 / 20f, height * 19 / 20f, mPaint)
+        return bitmap
+    }
+
+    /** 目标图像 */
+    private fun createDST(width: Int, height: Int): Bitmap {
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        mPaint.color = ContextCompat.getColor(context, R.color.dst)
+        canvas.drawCircle(width / 3f, height / 3f, width / 3f, mPaint)
+        return bitmap
+    }
+
+    /** 背景 */
+    private fun createBmShader(): BitmapShader {
+        val bitmap = Bitmap.createBitmap(intArrayOf(-0x1, -0x333334, -0x333334, -0x1), 2, 2, Bitmap.Config.ARGB_8888)
+        val shader = BitmapShader(bitmap, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+        val matrix = Matrix()
+        matrix.setScale(8F, 8F)
+        shader.setLocalMatrix(matrix)
+        return shader
     }
 
     companion object {
         /** TAG  */
         private val TAG = CustomerView::class.java.simpleName
+
+        /** 偏移量 */
+        private val OFFSET = 15
+
+        /** 最大行数 */
+        private val ROW_MAX = 4
     }
 }
