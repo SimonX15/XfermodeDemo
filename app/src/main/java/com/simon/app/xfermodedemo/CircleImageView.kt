@@ -4,10 +4,10 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.*
 import android.util.AttributeSet
-import android.view.View
+import android.widget.ImageView
 
 /**
- * desc: 圆图
+ * desc: 圆形图片，会根据控件宽高对图片进行缩放
  *
  * auther: xw
  *
@@ -15,57 +15,82 @@ import android.view.View
  *
  * @auther: xw
  */
-class CircleImageView(context: Context?, attrs: AttributeSet?) : View(context, attrs) {
+class CircleImageView(context: Context?, attrs: AttributeSet?) : ImageView(context, attrs) {
 
-    var paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    /** 画笔 */
+    private var mPaint: Paint? = null
 
-    var bitmap: Bitmap? = null
+    /** 目标图片 */
+    private var dstBitmap: Bitmap? = null
 
-    var circleBG: Bitmap? = null
-
-    var bmHeight = 0
-
-    var bmWidth = 0
+    /** 形状 */
+    private var circleBitmap: Bitmap? = null
 
     init {
-//        context.obtainStyledAttributes(attrs,)
-
-        paint.apply {
-            isDither = true
-            isFilterBitmap = true
+        mPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+        mPaint!!.apply {
+            isDither = true //设定是否使用图像抖动处理，会使绘制出来的图片颜色更加平滑和饱满，图像更加清晰
+            isFilterBitmap = true //加快显示速度，本设置项依赖于dither和xfermode的设置
         }
-
-        bitmap = BitmapFactory.decodeResource(resources, R.drawable.ic_bg)
-
-        bmWidth = bitmap!!.width
-        bmHeight = bitmap!!.height
-
-        bmWidth = Math.min(bmWidth, bmHeight)
-        bmHeight = bmWidth
-
-        circleBG = createCircleBG()
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+
+        //如果控件宽高不一致，取最小值
+        val width = Math.min(measuredWidth, measuredHeight)
+        setMeasuredDimension(width, width)
     }
 
     @SuppressLint("DrawAllocation")
     override fun onDraw(canvas: Canvas?) {
+        if (drawable == null) {
+            return
+        }
+
+        if (dstBitmap == null) {
+            dstBitmap = createDstBitmap()
+        }
+
+        if (circleBitmap == null) {
+            circleBitmap = createCircleBG(width)
+        }
+
         canvas?.apply {
-            val layer = saveLayer(0f, 0f, bmWidth.toFloat(), bmHeight.toFloat(), null)
-            drawBitmap(bitmap, 0f, 0f, null)
-            paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
-            drawBitmap(circleBG, 0f, 0f, paint)
-            paint.xfermode = null
+            val layer = saveLayer(0f, 0f, width.toFloat(), height.toFloat(), null)//新建layer
+            drawBitmap(dstBitmap, 0f, 0f, mPaint)
+            mPaint!!.xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
+            drawBitmap(circleBitmap, 0f, 0f, mPaint)
+            mPaint!!.xfermode = null
+            //layer退栈
             restoreToCount(layer)
         }
     }
 
-    private fun createCircleBG(): Bitmap {
-        val bitmap = Bitmap.createBitmap(bmWidth, bmHeight, Bitmap.Config.ARGB_8888)
+    /** 绘制目标图片 */
+    private fun createDstBitmap(): Bitmap? {
+        val dWidth = drawable.intrinsicWidth
+        val dHeight = drawable.intrinsicHeight
+
+        //缩放
+        val scale = Math.max(width * 1f / dWidth, height * 1f / dHeight)
+        val scaleWidth = (dWidth * scale).toInt()
+        val scaleHeight = (dHeight * scale).toInt()
+
+        drawable.setBounds(0, 0, scaleWidth, scaleHeight)
+
+        val dstBitmap = Bitmap.createBitmap(scaleWidth, scaleHeight, Bitmap.Config.ARGB_8888)
+        val dstCanvas = Canvas(dstBitmap)
+        drawable.draw(dstCanvas)
+
+        return dstBitmap
+    }
+
+    /** 绘制源图片，圆形 */
+    private fun createCircleBG(width: Int): Bitmap {
+        val bitmap = Bitmap.createBitmap(width, width, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
-        canvas.drawCircle(bmWidth / 2f, bmHeight / 2f, bmWidth / 2f, paint)
+        canvas.drawCircle(width / 2f, width / 2f, width / 2f, mPaint)
         return bitmap
     }
 }
