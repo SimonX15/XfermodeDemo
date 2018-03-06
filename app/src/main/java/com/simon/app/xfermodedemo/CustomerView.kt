@@ -161,7 +161,7 @@ class CustomerView(context: Context?, attrs: AttributeSet?) : View(context, attr
         val bitmap = Bitmap.createBitmap(intArrayOf(-0x1, -0x333334, -0x333334, -0x1), 2, 2, Bitmap.Config.ARGB_8888)
         val shader = BitmapShader(bitmap, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
         val matrix = Matrix()
-        matrix.setScale(8F, 8F)
+        matrix.setScale(12F, 12F)
         shader.setLocalMatrix(matrix)
         return shader
     }

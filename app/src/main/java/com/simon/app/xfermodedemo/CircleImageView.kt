@@ -58,9 +58,11 @@ class CircleImageView(context: Context?, attrs: AttributeSet?) : ImageView(conte
 
         canvas?.apply {
             val layer = saveLayer(0f, 0f, width.toFloat(), height.toFloat(), null)//新建layer
+
             drawBitmap(dstBitmap, 0f, 0f, mPaint)
             mPaint!!.xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
             drawBitmap(circleBitmap, 0f, 0f, mPaint)
+
             mPaint!!.xfermode = null
             //layer退栈
             restoreToCount(layer)
